@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    run: nginx
+  name: nginx-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: nginx
+  template:
+    metadata:
+      labels:
+        run: nginx
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+            {
+                "name": "init",
+                "image": "nginx",
+                "command": ["sh", "-c", "chmod u+x /scripts/..data/touch.sh"],
+                "volumeMounts": [{"name": "touch", "mountPath": "/scripts"}]
+            }
+        ]'
+
+    spec:
+      volumes:
+      - name: shared-volume
+      - name: touch
+        configMap:
+          name: touch
+
+      initContainers:
+      - name: init-nginx
+        image: nginx
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /nginx-data
+        command: ["/bin/sh"]
+        args: ["-c", "echo '<h1>Hello Kubernetes</h1>' > /nginx-data/index.html"]
+
+      containers:
+      - image: nginx
+        name: nginx
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /usr/share/nginx/html
+        - name: touch
+          mountPath: /scripts
+         
+#Service code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name:  nginx-deploy
+spec:
+  type: NodePort
+  selector:
+      run: nginx
+  ports:
+    - port: 80
+      nodePort: 30008  #nodePort has range from 30000-32767
+      protocol: TCP
+
+
